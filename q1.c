@@ -1,7 +1,7 @@
-#include <sys/time.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "timer.h"
 #include <stdint.h>
 
 /* Function prototype */
@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
 {
 	//an error message in case the input is bad
 	char message[] = {"Usage:\t ./q1 <nthreads>\nwhere nthreads is an integer representing the number of threads to use (nthreads > 0)."};
-	struct timeval start, end;
+	double start, end;
 
 	/* Error checking and input sanitizing.  If there's any error messages,
 	 * we'll end prematurely.
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	int i;
 	
-	gettimeofday(&start, NULL);
+	GET_TIME(start);
 	for(i = 0; i < nthreads; i++)
 	{
 		pthread_create(&threads[i], &attr, thread_func, (void *) (intptr_t) i);
@@ -57,18 +57,11 @@ int main(int argc, char* argv[])
 	{
 		pthread_join(threads[i], NULL);
 	}
-	gettimeofday(&end, NULL);
-
-	//compute the timings
-	long secs, usecs;
-	double t;
-	secs = end.tv_sec - start.tv_sec;
-	usecs = end.tv_usec - start.tv_usec;
-	t = secs + ((double) usecs/1000000);
+	GET_TIME(end);
 
 	//output results
 	printf("nthreads: %ld\t total time: %.9f\t time per thread: %.9f\n",  \
-	nthreads, t, (double) t/nthreads);
+	nthreads, end-start, (double) t/nthreads);
 
 	//cleanup and exit
 	free(threads);

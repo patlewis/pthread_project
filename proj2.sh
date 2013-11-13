@@ -4,12 +4,13 @@ rm -f q1 q2
 
 #==================Compilation and error checking===============================
 gcc -o q1 -pthread -Wall -Werror q1.c
-if [ $? -eq 0 ]; then
-	gcc -o q1 -lpthread -Wall q1.c
-fi
-if [ $? -eq 0 ]; then
-	echo "Error during compilation.  Uhh...crap."
-fi
+#if [ $? -eq 0 ]; then
+#	gcc -o q1 -lpthread -Wall q1.c
+#	if [ $? -eq 0 ]; then
+#		echo "Error during compilation.  Uhh...crap."
+#	fi
+#fi
+
 # gcc -o q2 -pthread -Wall q2.c
 # if [ $? -eq 0 ]; then
 # 	gcc -o q2 -lpthread -Wall -Werror q2.c
@@ -23,7 +24,7 @@ fi
 #q1_tex.txt is plain-text but with some added formatting for copying and
 #pasting straight into a LaTeX table.  
 printf "nthreads\ttotal_time\taverage_time\n" > q1.txt
-printf "\\hlineNumber of Threads & Total Time(s) & Average Time(s)\\\\\\hline\n" > q1_tex.txt
+printf "\\hline Number of Threads & Total Time(s) & Average Time(s)\\\\\\hline\n" > q1_tex.txt
 for i in {1..19}
 do
 	./q1 $i | awk '/nthreads/ {printf "%d\t\t%.9f\t%.9f\n", $2, $5, $9}' >> q1.txt
@@ -53,5 +54,4 @@ set output "q1_plot.eps"
 plot "q1.txt" using 1:3 title "Average Time" with linespoints pointtype 6 lw 10
 __EOF
 
-
-#cat q1.txt
+#=================================Run Program 2=================================
