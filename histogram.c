@@ -1,8 +1,8 @@
 /* File:      histogram.c
  * Purpose:   Build a histogram from some random data
  * 
- * Compile:   gcc -g -Wall -o histogram histogram.c
- * Run:       ./histogram <bin_count> <min_meas> <max_meas> <data_count>
+ * Compile:   gcc -g -pthread -lm -Wall -o histogram histogram.c
+ * Run:       ./histogram <bin_count> <min_meas> <max_meas> <data_count> <thread_count>
  *
  * Input:     None
  * Output:    A histogram with X's showing the number of measurements
@@ -21,6 +21,9 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <math.h>
 
 void Usage(char prog_name[]);
 
@@ -29,7 +32,8 @@ void Get_args(
       int*     bin_count_p   /* out */,
       float*   min_meas_p    /* out */,
       float*   max_meas_p    /* out */,
-      int*     data_count_p  /* out */);
+      int*     data_count_p  /* out */,
+      int*     thread_count_p/* out */);
 
 void Gen_data(
       float   min_meas    /* in  */, 
@@ -56,22 +60,45 @@ void Print_histo(
       int      bin_count     /* in */, 
       float    min_meas      /* in */);
 
-int main(int argc, char* argv[]) {
-   int bin_count, i, bin;
-   float min_meas, max_meas;
-   float* bin_maxes;
-   int* bin_counts;
-   int data_count;
-   float* data;
+void* thread_do_work(void*);
+
+/* Global variables.  The threads will need to access these. Somehow. */
+int* local_bins;           //the "multiple", "local" bins
+float* data;               //the full array of data
+int* bin_counts;           //the final set of bins
+float min_meas, max_meas;  //for finding out the data boundaries
+float* bin_maxes;          //set of upper limits for all the bins
+int bin_count;             //number of bins we'll use
+int thread_count;          //number of threads we'll use
+int data_count;            //number of data elements to sort
+pthread_t* threads;        //memory for holding all the threads
+
+/* These globals will be used as part of the barrier*/
+int counter = 0;
+pthread_mutex_t mutex;
+pthread_cond_t cond_var;
+
+int main(int argc, char* argv[]) 
+{  
+   int i;
 
    /* Check and get command line args */
-   if (argc != 5) Usage(argv[0]); 
-   Get_args(argv, &bin_count, &min_meas, &max_meas, &data_count);
+   if (argc != 6) Usage(argv[0]); 
+   Get_args(argv, &bin_count, &min_meas, &max_meas, &data_count, &thread_count);
 
    /* Allocate arrays needed */
-   bin_maxes = malloc(bin_count*sizeof(float));
-   bin_counts = malloc(bin_count*sizeof(int));
-   data = malloc(data_count*sizeof(float));
+   bin_maxes = (float *)malloc(bin_count * sizeof(float));
+   bin_counts = (int *)malloc(bin_count * sizeof(int));
+   data = (float *)malloc(data_count * sizeof(float));
+   threads = (pthread_t *)malloc(thread_count * sizeof(pthread_t));
+   local_bins = (int *)malloc(bin_count * thread_count * sizeof(int));
+
+   /* Initialize thread stuff */
+   pthread_mutex_init(&mutex, NULL);
+   pthread_cond_init(&cond_var, NULL);
+   pthread_attr_t attr;
+   pthread_attr_init(&attr);
+   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
    /* Generate the data */
    Gen_data(min_meas, max_meas, data, data_count);
@@ -79,10 +106,25 @@ int main(int argc, char* argv[]) {
    /* Create bins for storing counts */
    Gen_bins(min_meas, max_meas, bin_maxes, bin_counts, bin_count);
 
-   /* Count number of values in each bin */
+   /* Count number of values in each bin.
+    * This was used in the single-threaded version.
+    * It is hereby deprecated.
    for (i = 0; i < data_count; i++) {
       bin = Which_bin(data[i], bin_maxes, bin_count, min_meas);
       bin_counts[bin]++;
+   }
+   */
+
+   /* Create the threads and have them do work */
+   for (i = 0;i < thread_count; i++)
+   {
+      pthread_create(&threads[i], &attr, thread_do_work, (void *) (intptr_t) i);
+   }
+
+   /* When they're all done, join them up */
+   for (i = 0; i < thread_count; i++)
+   {
+      pthread_join(threads[i], NULL);
    }
 
 #  ifdef DEBUG
@@ -98,6 +140,8 @@ int main(int argc, char* argv[]) {
    free(data);
    free(bin_maxes);
    free(bin_counts);
+   free(threads);
+   free(local_bins);
    return 0;
 
 }  /* main */
@@ -110,7 +154,7 @@ int main(int argc, char* argv[]) {
  */
 void Usage(char prog_name[] /* in */) {
    fprintf(stderr, "usage: %s ", prog_name); 
-   fprintf(stderr, "<bin_count> <min_meas> <max_meas> <data_count>\n");
+   fprintf(stderr, "<bin_count> <min_meas> <max_meas> <data_count> <thread_count>\n");
    exit(0);
 }  /* Usage */
 
@@ -123,23 +167,27 @@ void Usage(char prog_name[] /* in */) {
  *            min_meas_p:    minimum measurement
  *            max_meas_p:    maximum measurement
  *            data_count_p:  number of measurements
+ *            thread_count_p:number of threads
  */
 void Get_args(
       char*    argv[]        /* in  */,
       int*     bin_count_p   /* out */,
       float*   min_meas_p    /* out */,
       float*   max_meas_p    /* out */,
-      int*     data_count_p  /* out */) {
+      int*     data_count_p  /* out */,
+      int*     thread_count_p/* out */) {
 
    *bin_count_p = strtol(argv[1], NULL, 10);
    *min_meas_p = strtof(argv[2], NULL);
    *max_meas_p = strtof(argv[3], NULL);
    *data_count_p = strtol(argv[4], NULL, 10);
+   *thread_count_p = strtol(argv[5], NULL, 10);
 
 #  ifdef DEBUG
    printf("bin_count = %d\n", *bin_count_p);
    printf("min_meas = %f, max_meas = %f\n", *min_meas_p, *max_meas_p);
    printf("data_count = %d\n", *data_count_p);
+   printf("thread_count = %d\n", *thread_count_p);
 #  endif
 }  /* Get_args */
 
@@ -278,3 +326,108 @@ void Print_histo(
       printf("\n");
    }
 }  /* Print_histo */
+
+/**
+ * When running a multithreaded implementation
+ * of histogram.c, each thread has to have its
+ * own routine is uses to do work.  This is that
+ * routine.  There are two basic parts to it--
+ * the first part takes a chunk of the data and
+ * categorizes it into (local versions of) bins.
+ * The second part takes the local bins and 
+ * consolidates them into global bins.
+ *
+ * Overall, the complexity of this function
+ * is O(n/t + b) where n is the size of the 
+ * data, t is the number of threads, and b
+ * is the number of bins.
+ */
+void* thread_do_work(void* thread_data)
+{
+   //set up data
+   int id = (int)(intptr_t) thread_data;
+   int num_elements = floor(data_count / thread_count);
+   if(id == thread_count-1)//if this is the "last" thread
+   {
+      num_elements = floor(data_count/thread_count)+(data_count%thread_count);
+      //have it take the remainder of the elements too
+      //a sloppy solution but it works
+   }
+
+   //find out start and stop points for each section of the overall data array
+   int start_n, stop_n;
+   start_n = floor(data_count/thread_count)*id;
+   stop_n = start_n + num_elements; //stop just short of next partition
+
+   //find out what bins they go in and put them there
+   int k, bin;
+   for(k = start_n; k < stop_n; k++)
+   {
+       bin = Which_bin(data[k], bin_maxes, bin_count, min_meas);
+       //the offset to the "individual" bin should be (id*bin_count)
+       //further offset in the bin should just be the bin number
+       local_bins[(id*bin_count)+bin]++; //make sure it writes to correct bin
+   }
+
+   /* Barrier, wait for other threads to catch up */
+   pthread_mutex_lock(&mutex);
+   counter++;
+   if(counter == thread_count) //if this is the last thread to join the wait
+   {
+      counter = 0;
+      pthread_cond_broadcast(&cond_var); //wake everyone up
+   }
+   else 
+   {
+      while(pthread_cond_wait(&cond_var, &mutex) != 0); //wait until condition
+   }
+   pthread_mutex_unlock(&mutex); //release the lock after waking and acquiring
+
+
+   //When consolidating bins, we may run into a problem.  What if there are
+   //more threads than bins? bins than threads?
+   int sum;
+   int m;
+   if(bin_count > thread_count) //more bins than threads
+   {
+      int bins_per_thread = floor(bin_count/thread_count);
+      if (id < (bin_count % thread_count)) 
+      {
+         //if there is a bin left over, the "early" threads take one
+         bins_per_thread++;
+      }
+      //outer loop is to make sure it gets through all of 
+      //its bin responsibilities
+      // quantity "m" is the new "moving" thread id
+      for(m = id; m < bin_count; m = m+thread_count)
+      {
+         sum = 0;
+         //now loop through the bins
+         //there are always <thread_count> number of bins
+         //bin_count is the "size" of a set of bins
+         for(k = 0; k < thread_count; k++)
+         {
+            sum+=local_bins[m+(k*bin_count)];
+         }
+         //give the final count
+         bin_counts[m] = sum;
+      }
+   }
+   else
+   {
+      //only need to do work if there's work that needs to be done
+      if(id < bin_count)
+      {
+         sum = 0;
+         for(k = 0; k < thread_count; k++)
+         {
+            sum+=local_bins[id+(k*bin_count)];
+         }
+         //give the final count
+         bin_counts[id] = sum;
+      }
+      //else, nothing to work on cause all the other threads
+      //are already on it
+   }
+   return NULL;
+}

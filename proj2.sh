@@ -1,30 +1,32 @@
 #!/bin/bash
 
-rm -f q1 q2
+rm -f q1 histogram
 
 #==================Compilation and error checking===============================
 gcc -o q1 -pthread -Wall -Werror q1.c
-#if [ $? -eq 0 ]; then
-#	gcc -o q1 -lpthread -Wall q1.c
-#	if [ $? -eq 0 ]; then
-#		echo "Error during compilation.  Uhh...crap."
-#	fi
-#fi
+if [ $? -ne 0 ]; then
+	gcc -o q1 -lpthread -Wall -Werror q1.c
+	if [ $? -ne 0 ]; then
+		echo "Error during compilation.  Uhh...crap."
+		exit 0
+	fi
+fi
 
-# gcc -o q2 -pthread -Wall q2.c
-# if [ $? -eq 0 ]; then
-# 	gcc -o q2 -lpthread -Wall -Werror q2.c
-# fi
-# if [ $? -eq 0 ]; then
-# 	echo "Error during compilation.  Uhh...crap."
-# fi
+gcc -o histogram -pthread -Wall -Werror histogram.c -lm
+ if [ $? -ne 0 ]; then
+ 	gcc -o histogram -lpthread -lm -Wall -Werror histogram.c
+ fi
+ if [ $? -ne 0 ]; then
+ 	echo "Error during compilation.  Uhh...crap."
+ 	exit 0
+ fi
 #===============Run Program 1===================================================
 
 #q1.txt is the plain-text format of the results.  
 #q1_tex.txt is plain-text but with some added formatting for copying and
 #pasting straight into a LaTeX table.  
 printf "nthreads\ttotal_time\taverage_time\n" > q1.txt
-printf "\\hline Number of Threads & Total Time(s) & Average Time(s)\\\\\\hline\n" > q1_tex.txt
+printf "\\hline Number of Threads & Total Time(s) & Average Time(s)\\\\\\\\hline\n" > q1_tex.txt
 for i in {1..19}
 do
 	for j in {1..10000}
@@ -67,3 +69,8 @@ __EOF
 
 rm -f temp
 #=================================Run Program 2=================================
+
+# I actually don't know what you would run on program 2 to adequately
+# test it.  I'm just going to leave this part blank.  It's already been
+# compiled, so you should be able to run it with whatever data you feel
+# makes the best test cases
