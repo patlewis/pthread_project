@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 
 	//output results
 	printf("nthreads: %ld\t total time: %.9f\t time per thread: %.9f\n",  \
-	nthreads, end-start, (double) t/nthreads);
+	nthreads, end-start, (double) (end-start)/nthreads);
 
 	//cleanup and exit
 	free(threads);

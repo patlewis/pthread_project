@@ -27,13 +27,23 @@ printf "nthreads\ttotal_time\taverage_time\n" > q1.txt
 printf "\\hline Number of Threads & Total Time(s) & Average Time(s)\\\\\\hline\n" > q1_tex.txt
 for i in {1..19}
 do
-	./q1 $i | awk '/nthreads/ {printf "%d\t\t%.9f\t%.9f\n", $2, $5, $9}' >> q1.txt
-	./q1 $i | awk '/nthreads/ {printf "%d\t\t& %.9f\t& %.9f\\\\\\hline\n", $2, $5, $9}' >> q1_tex.txt
+	for j in {1..10000}
+	do
+		./q1 $i | awk '/nthreads/ {printf "%d\t\t%.9f\t%.9f\n", $2, $5, $9}' >> temp
+	done
+	cat temp | awk '{sum1=$1; sum2+=$2; sum3+=$3}END{printf "%d\t\t%.9f\t%.9f\n", sum1, sum2/NR, sum3/NR}' >> q1.txt
+	cat temp | awk '{sum1=$1; sum2+=$2; sum3+=$3}END{printf "%d\t\t& %.9f\t& %.9f\\\\\hline\n", sum1, sum2/NR, sum3/NR}' >> q1_tex.txt
+	rm -f temp #have to remove/reset each time so as not to contaminate the data
 done
 for i in {20..50..5}
 do
-	./q1 $i | awk '/nthreads/ {printf "%d\t\t%.9f\t%.9f\n", $2, $5, $9}' >> q1.txt
-	./q1 $i | awk '/nthreads/ {printf "%d\t\t& %.9f\t& %.9f\\\\\\hline\n", $2, $5, $9}' >> q1_tex.txt
+	for j in {1..10000}
+	do
+		./q1 $i | awk '/nthreads/ {printf "%d\t\t%.9f\t%.9f\n", $2, $5, $9}' >> temp
+	done
+	cat temp | awk '{sum1=$1; sum2+=$2; sum3+=$3}END{printf "%d\t\t%.9f\t%.9f\n", sum1, sum2/NR, sum3/NR}' >> q1.txt
+	cat temp | awk '{sum1=$1; sum2+=$2; sum3+=$3}END{printf "%d\t\t& %.9f\t& %.9f\\\\\hline\n", sum1, sum2/NR, sum3/NR}' >> q1_tex.txt
+	rm -f temp #have to remove/reset each time so as not to contaminate the data
 done
 
 
@@ -54,4 +64,6 @@ set output "q1_plot.eps"
 plot "q1.txt" using 1:3 title "Average Time" with linespoints pointtype 6 lw 10
 __EOF
 
+
+rm -f temp
 #=================================Run Program 2=================================
